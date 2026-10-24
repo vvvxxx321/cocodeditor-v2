@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { io as ioClient, Socket } from 'socket.io-client';
 import { Role } from '@prisma/client';
 import { createApp, startServer } from '../src/index';
@@ -145,7 +145,8 @@ describe('T3 Socket.IO authentication & authorization', () => {
     await new Promise<void>(r => s.on('connect', () => r()));
     await new Promise(r => setTimeout(r, 300));
     let children = '';
-    try { children = execSync(`pgrep -P ${process.pid} -l`).toString(); } catch { /* no children */ }
+    // execFileSync (no shell): execSync would itself spawn `sh -c`, which pgrep -P lists on Linux.
+    try { children = execFileSync('pgrep', ['-P', String(process.pid), '-l']).toString(); } catch { /* no children */ }
     expect(children).not.toMatch(/bash|cmd\.exe|sh\b/);
   });
 
