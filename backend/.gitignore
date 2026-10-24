@@ -1,0 +1,10 @@
+node_modules
+.env
+*.sql
+migrations/
+# V2: Prisma migrations are versioned
+!prisma/migrations/
+!prisma/migrations/**
+*.db
+*.sqlite
+*.sqlite3

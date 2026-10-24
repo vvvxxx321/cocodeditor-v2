@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  directUrl    = env("DIRECT_URL")
+  relationMode = "prisma"
+}
+
+model Profile {
+  id          String       @id @db.Uuid
+  email       String       @unique
+  name        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  teamMembers TeamMember[]
+  ownedTeams  Team[]       @relation("TeamOwner")
+}
+
+model Team {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  joinCode    String       @unique @default(uuid())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  ownerId     String
+  owner       Profile      @relation("TeamOwner", fields: [ownerId], references: [id])
+  members     TeamMember[]
+  projects    Project[]
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teamId    String
+  profileId String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, profileId])
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  files       File[]
+
+  @@unique([teamId, name])
+}
+
+model File {
+  id        String   @id @default(uuid())
+  name      String
+  content   String
+  language  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// V2: durable Yjs CRDT state for a file (one row per file). Kept out of `File` so file
+// listings never load the binary blob. `File.content` stays as a materialized plain-text copy.
+model FileDocument {
+  fileId    String   @id
+  state     Bytes
+  updatedAt DateTime @updatedAt
+}
+
+enum VersionReason {
+  MANUAL
+  AUTO
+  PRE_RESTORE
+  RESTORE
+}
+
+// V2: immutable point-in-time snapshots of a file, taken from the live Yjs document.
+model FileVersion {
+  id            String        @id @default(uuid())
+  fileId        String
+  versionNumber Int
+  content       String
+  yjsState      Bytes?
+  authorId      String?
+  reason        VersionReason
+  createdAt     DateTime      @default(now())
+
+  @@unique([fileId, versionNumber])
+  @@index([fileId, createdAt])
+}
+
+enum ExecStatus {
+  PENDING_ENQUEUE // row committed, enqueue not yet acknowledged (safe to retry with the same key)
+  QUEUED
+  RUNNING
+  SUCCEEDED // Judge0 returned a final verdict (including compile/runtime errors of user code)
+  FAILED    // infrastructure failure after bounded retries, or a permanent request error
+  TIMED_OUT
+}
+
+// V2: durable record of a code execution request. One row per (userId, idempotencyKey).
+model ExecutionJob {
+  id             String     @id @default(uuid())
+  userId         String
+  projectId      String
+  fileId         String?
+  idempotencyKey String
+  requestHash    String
+  language       String
+  sourceCode     String
+  stdin          String     @default("")
+  status         ExecStatus @default(PENDING_ENQUEUE)
+  attempts       Int        @default(0)
+  judge0Token    String?
+  submittedAt    DateTime?
+  stdout         String?
+  stderr         String?
+  compileOutput  String?
+  judge0Status   String?
+  timeMs         Int?
+  memoryKb       Int?
+  error          String?
+  createdAt      DateTime   @default(now())
+  enqueuedAt     DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  @@unique([userId, idempotencyKey])
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+}

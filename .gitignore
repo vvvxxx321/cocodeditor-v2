@@ -1,0 +1,40 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+
+# Test output
+playwright-report/
+test-results/
+blob-report/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and local data
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Local development tooling and notes (not part of the published project)
+docs/
+CLAUDE.md
+.claude/
+.cursor/
+*.zip
